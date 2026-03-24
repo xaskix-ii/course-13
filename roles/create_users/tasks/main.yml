@@ -1,32 +1,38 @@
 ---
 - name: Load vault variables
-  ansible.builtin.include_vars:
+  include_vars:
     file: group_vars/all/vault.yml
   no_log: true
 
 - name: Ensure docker group exists
-  ansible.builtin.group:
+  group:
     name: docker
     state: present
 
 - name: Create users and generate SSH keys
-  ansible.builtin.user:
+  user:
     name: "{{ item.name }}"
     password: "{{ item.password | password_hash('sha512') }}"
     groups: docker
-    append: true
-    generate_ssh_key: true
+    append: yes
+    generate_ssh_key: yes
     ssh_key_bits: 2048
     ssh_key_type: rsa
     ssh_key_file: "/home/{{ item.name }}/.ssh/id_rsa"
   loop: "{{ users }}"
   no_log: true
 
-- name: Add public key to authorized_keys
-  ansible.builtin.command: |
-    cat /home/{{ item.name }}/.ssh/id_rsa.pub >> /home/{{ item.name }}/.ssh/authorized_keys
-    chmod 600 /home/{{ item.name }}/.ssh/authorized_keys
-    chown {{ item.name }}:{{ item.name }} /home/{{ item.name }}/.ssh/authorized_keys
+- name: Wait for SSH keys to be created
+  wait_for:
+    path: "/home/{{ item.name }}/.ssh/id_rsa.pub"
+    state: present
+    timeout: 10
   loop: "{{ users }}"
-  changed_when: false
+
+- name: Add public key to authorized_keys
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    state: present
+    key: "{{ lookup('file', '/home/' + item.name + '/.ssh/id_rsa.pub') }}"
+  loop: "{{ users }}"
   no_log: true
