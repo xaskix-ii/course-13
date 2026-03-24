@@ -30,3 +30,109 @@
   loop: "{{ users }}"
   changed_when: false
   no_log: true
+---
+- name: Load vault variables
+  ansible.builtin.include_vars:
+    file: group_vars/all/vault.yml
+  no_log: true
+
+- name: Ensure docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Create users and generate SSH keys
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    password: "{{ item.password | password_hash('sha512') }}"
+    groups: docker
+    append: true
+    generate_ssh_key: true
+    ssh_key_bits: 2048
+    ssh_key_type: rsa
+    ssh_key_file: "/home/{{ item.name }}/.ssh/id_rsa"
+  loop: "{{ users }}"
+  no_log: true
+
+- name: Read public key content
+  ansible.builtin.slurp:
+    src: "/home/{{ item.name }}/.ssh/id_rsa.pub"
+  loop: "{{ users }}"
+  register: public_keys
+
+- name: Add public key to authorized_keys
+  ansible.posix.authorized_key:
+    user: "{{ item.item.name }}"
+    state: present
+    key: "{{ item.content | b64decode }}"
+  loop: "{{ public_keys.results }}"
+  no_log: true
+
+- name: Set permissions for private key
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh/id_rsa"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ users }}"
+
+- name: Set permissions for public key
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh/id_rsa.pub"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0644"
+  loop: "{{ users }}"
+---
+- name: Load vault variables
+  ansible.builtin.include_vars:
+    file: group_vars/all/vault.yml
+  no_log: true
+
+- name: Ensure docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Create users and generate SSH keys
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    password: "{{ item.password | password_hash('sha512') }}"
+    groups: docker
+    append: true
+    generate_ssh_key: true
+    ssh_key_bits: 2048
+    ssh_key_type: rsa
+    ssh_key_file: "/home/{{ item.name }}/.ssh/id_rsa"
+  loop: "{{ users }}"
+  no_log: true
+
+- name: Read public key content
+  ansible.builtin.slurp:
+    src: "/home/{{ item.name }}/.ssh/id_rsa.pub"
+  loop: "{{ users }}"
+  register: public_keys
+
+- name: Add public key to authorized_keys
+  authorized_key:
+    user: "{{ item.item.name }}"
+    state: present
+    key: "{{ item.content | b64decode }}"
+  loop: "{{ public_keys.results }}"
+  no_log: true
+
+- name: Set permissions for private key
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh/id_rsa"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0600"
+  loop: "{{ users }}"
+
+- name: Set permissions for public key
+  ansible.builtin.file:
+    path: "/home/{{ item.name }}/.ssh/id_rsa.pub"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0644"
+  loop: "{{ users }}"
