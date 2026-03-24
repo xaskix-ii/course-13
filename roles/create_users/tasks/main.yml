@@ -4,34 +4,29 @@
     file: group_vars/all/vault.yml
   no_log: true
 
+- name: Ensure docker group exists
+  ansible.builtin.group:
+    name: docker
+    state: present
+
 - name: Create users and generate SSH keys
   ansible.builtin.user:
     name: "{{ item.name }}"
     password: "{{ item.password | password_hash('sha512') }}"
     groups: docker
-    append: yes
-    generate_ssh_key: yes
+    append: true
+    generate_ssh_key: true
     ssh_key_bits: 2048
     ssh_key_type: rsa
     ssh_key_file: "/home/{{ item.name }}/.ssh/id_rsa"
   loop: "{{ users }}"
   no_log: true
-  register: user_creation
-
-- name: Ensure .ssh directory permissions
-  ansible.builtin.file:
-    path: "/home/{{ item.name }}/.ssh"
-    state: directory
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
-    mode: "0700"
-  loop: "{{ users }}"
 
 - name: Add public key to authorized_keys
-  ansible.builtin.shell: |
+  ansible.builtin.command: |
     cat /home/{{ item.name }}/.ssh/id_rsa.pub >> /home/{{ item.name }}/.ssh/authorized_keys
     chmod 600 /home/{{ item.name }}/.ssh/authorized_keys
     chown {{ item.name }}:{{ item.name }} /home/{{ item.name }}/.ssh/authorized_keys
   loop: "{{ users }}"
-  when: user_creation.changed
-  changed_when: true
+  changed_when: false
+  no_log: true
